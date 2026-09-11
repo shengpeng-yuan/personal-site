@@ -392,11 +392,26 @@ Markdown 字符串
 | --- | --- | --- | --- |
 | `DATABASE_URL` | 是 | `file:./dev.db` | SQLite 文件路径；生产建议绝对路径 |
 | `JWT_SECRET` | 是 | 无 | 会话签名密钥，缺失会直接报错 |
-| `ADMIN_USERNAME` | 否 | `admin` | 只在 `npm run db:seed` 时使用 |
-| `ADMIN_PASSWORD` | 否 | `admin123456` | 同上 |
+| `ADMIN_USERNAME` | 否 | `admin` | **仅 `npm run db:seed` 读取**，见下方说明 |
+| `ADMIN_PASSWORD` | 否 | `admin123456` | **仅 `npm run db:seed` 读取**，见下方说明 |
 | `NEXT_PUBLIC_SITE_URL` | 否 | `http://localhost:3000` | sitemap / robots 里的域名 |
 | `COOKIE_SECURE` | 否 | 生产为 true | 设为 `false` 可在纯 HTTP 下登录（仅用于调试） |
 | `SEED_DEMO` | 否 | 未设置 | 设为 `false` 时 seed 不写入示例文章与项目 |
+| `UPLOAD_DIR` | 否 | `<cwd>/data/uploads` | 上传图片的存放目录 |
+
+> ### `ADMIN_USERNAME` / `ADMIN_PASSWORD` 的语义（重要，容易误解）
+>
+> 这两个变量**不是运行时登录凭据**，只在执行 `npm run db:seed` 的那一刻被读取一次，
+> 经 bcrypt 哈希后写入 `User` 表（见 [prisma/seed.ts](../prisma/seed.ts) 的 `prisma.user.upsert`）。
+> 登录时 [app/api/auth/login/route.ts](../app/api/auth/login/route.ts) 只做 `bcrypt.compare(明文, 数据库里的哈希)`，
+> 全程不会再读 `.env`。
+>
+> 由此推出两条实用结论：
+>
+> 1. **改了 `.env` 里的密码但没重跑 `db:seed`，登录密码不会变**——这是「密码明明改对了却登录不上」的头号原因；
+> 2. `db:seed` 内部是 `upsert`（`update: { passwordHash }`），所以**重跑它会顺带把密码重置成当前 `.env` 的值**，这也是忘记后台密码时的官方找回方式。
+>
+> 日常修改密码请走后台「站点设置 → 修改登录密码」（`PATCH /api/auth/password`），不必改 `.env`。
 
 模板见 [.env.example](../.env.example)（真实 `.env` 已被 `.gitignore` 排除）。
 

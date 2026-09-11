@@ -11,8 +11,8 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| 前台首页 | `https://blog.heartgo.top/` → 自动跳转到 `/zh`（按浏览器语言判断中/英） |
-| 后台管理 | `https://blog.heartgo.top/admin` |
+| 前台首页 | `https://me.heartgo.top/` → 自动跳转到 `/zh`（按浏览器语言判断中/英） |
+| 后台管理 | `https://me.heartgo.top/admin` |
 | 默认管理员 | 用户名 `admin`，密码 `admin123456`（**上线后第一件事就是改掉它**，后台「站点设置 → 修改登录密码」） |
 | 数据库 | SQLite 单文件，默认 `prisma/prod.db`（下文会改成绝对路径） |
 | 图片上传 | 保存在项目根目录的 `data/uploads/`，部署更新时**不要删除该目录**（可用 `UPLOAD_DIR` 环境变量改到别处） |
@@ -107,12 +107,14 @@ DATABASE_URL="file:/var/www/personal-site/prisma/prod.db"
 # 生成命令：openssl rand -base64 48
 JWT_SECRET="把这里替换成 openssl rand -base64 48 的输出"
 
-# 首次初始化管理员账号时使用（之后可以删掉这两行）
+# 管理员账号：⚠️ 这两个值只在执行 npm run db:seed 的那一刻被读取一次，
+# 用来把密码写入数据库（bcrypt 哈希）。之后你改这里不会影响登录密码，
+# 改密码请用后台的「站点设置 → 修改登录密码」，或者重跑一次 db:seed。
 ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="改成你自己的强密码"
 
 # 站点地址：用于 sitemap.xml / robots.txt，填你的正式域名
-NEXT_PUBLIC_SITE_URL="https://blog.heartgo.top"
+NEXT_PUBLIC_SITE_URL="https://me.heartgo.top"
 
 # 上传图片的存放目录（可选）。不填则默认使用 <项目目录>/data/uploads
 # UPLOAD_DIR="/var/www/personal-site-data/uploads"
@@ -146,6 +148,40 @@ npm run db:seed
 # 4.4 构建生产版本
 npm run build
 ```
+
+> ### ⚠️ 关于管理员密码（这里最容易困惑，务必看完）
+>
+> `.env` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` **不是登录凭据**。它们只在 `db:seed` 执行的那一刻被读取一次，被 bcrypt 哈希后写进数据库的 `User` 表；登录时只比对数据库里的哈希值。
+>
+> 所以会出现下面这两种情况：
+>
+> | 你的操作 | 结果 |
+> | --- | --- |
+> | 先跑 `db:seed`，之后才改 `.env` 里的密码 | ❌ 登录还是旧密码 —— 改 `.env` 不会生效 |
+> | 改完 `.env`，再跑一次 `db:seed` | ✅ 密码被更新为新值 |
+>
+> `db:seed` 是幂等的（内部用 `upsert`），重复执行不会产生重复数据，**顺便会把管理员密码重置成当前 `.env` 里的值**。
+>
+> 因此「改了密码却登录不上」的标准解法是：
+>
+> ```bash
+> cd /var/www/personal-site
+> grep ADMIN_ .env                  # 1. 确认 .env 里到底写的是什么（注意别拼错）
+> SEED_DEMO=false npm run db:seed   # 2. 让它把密码写进数据库
+> ```
+>
+> 然后用 `.env` 里 `ADMIN_PASSWORD` 的**原文**登录 —— 注意不是本文档里的默认值 `admin123456`。
+>
+> 如果重跑 seed 后仍然登录失败，按顺序排查：
+>
+> 1. 确认编辑的是**服务器上**的 `/var/www/personal-site/.env`，不是本地那份；
+> 2. `grep ADMIN_ .env` 看是否写了**两遍**（重复的键以先出现的为准，容易踩坑）；
+> 3. 用 `sqlite3` 直接看数据库里到底有哪个账号：
+>    ```bash
+>    sudo apt install -y sqlite3        # 没有的话先装
+>    sqlite3 prisma/prod.db "SELECT id, username FROM User;"
+>    ```
+>    查不到任何行 → 说明 seed 没跑成功，回到 4.3 重跑并观察报错。
 
 构建成功的标志是最后输出一张路由表，并包含 `✓ Generating static pages (20/20)`。
 
@@ -182,30 +218,34 @@ curl -I http://127.0.0.1:3000
 
 ## 6. 配置 nginx 反向代理
 
-### 6.1 先找到现有配置放在哪
+### 6.1 配置文件位置
 
-你已经有 HTTPS 站点（例如 `day.heartgo.top`），新站点建议**在同一个目录下新建一个配置文件**，方便统一管理：
+本站的配置文件就是：
 
-```bash
-# 找到现有配置写在哪个文件里
-grep -rl "day.heartgo.top" /etc/nginx/
-
-# 假设输出是 /etc/nginx/conf.d/day.conf，就在同目录新建：
-sudo nano /etc/nginx/conf.d/blog.conf
+```
+/etc/nginx/conf.d/personal-site.conf
 ```
 
+直接编辑它：
+
+```bash
+sudo nano /etc/nginx/conf.d/personal-site.conf
+```
+
+> 你另一个站点（`day.heartgo.top`）的配置在 `/etc/nginx/conf.d/` 下的其他文件里，两边互不影响。
 > 项目目录 `/var/www/personal-site` 只是本文档的约定，你可以放到任何位置（比如和静态站放一起）。
 > 唯一要求：下面 `alias` 里的路径要和实际项目路径一致。
 
 ### 6.2 配置文件内容
 
-写法跟你现有的配置保持一致（`listen 443 ssl` + 显式证书路径）。下面的 `blog.heartgo.top` 是示例，换成你实际要用的子域名即可：
+写法跟你现有的 `day.heartgo.top` 保持一致（`listen 443 ssl` + 显式证书路径）：
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name blog.heartgo.top;             # ← 改成你要用的域名
+    server_name me.heartgo.top;
 
+    # 复用你现有站点的通配符证书（*.heartgo.top），无需重新签发
     ssl_certificate     /etc/letsencrypt/live/heartgo.top/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/heartgo.top/privkey.pem;
 
@@ -260,20 +300,20 @@ sudo openssl x509 -in /etc/letsencrypt/live/heartgo.top/cert.pem -noout -text | 
 - 只有 `DNS:day.heartgo.top` 这类具体域名 → 需要给新域名单独签发：
 
 ```bash
-sudo certbot certonly --nginx -d blog.heartgo.top
-# 签发后证书路径变成 /etc/letsencrypt/live/blog.heartgo.top/，记得同步改上面的 ssl_certificate
+sudo certbot certonly --nginx -d me.heartgo.top
+# 签发后证书路径变成 /etc/letsencrypt/live/me.heartgo.top/，记得同步改上面的 ssl_certificate
 ```
 
 > 用 `certonly` 而不是 `certbot --nginx`：后者会去自动改写你的 server 块，而这里的 server 块已经手写好了，只需要证书。
 
 ### 6.4 让 80 端口自动跳转到 HTTPS（可选）
 
-如果希望访问 `http://blog.heartgo.top` 时也能自动跳到 HTTPS，再加一个 80 的 server 块：
+如果希望访问 `http://me.heartgo.top` 时也能自动跳到 HTTPS，再加一个 80 的 server 块：
 
 ```nginx
 server {
     listen 80;
-    server_name blog.heartgo.top;
+    server_name me.heartgo.top;
     return 301 https://$host$request_uri;
 }
 ```
@@ -283,7 +323,7 @@ server {
 ```bash
 sudo nginx -t                          # 必须输出 syntax is ok / test is successful
 sudo systemctl reload nginx
-curl -I https://blog.heartgo.top       # 期望 307（跳转到 /zh）
+curl -I https://me.heartgo.top       # 期望 307（跳转到 /zh）
 ```
 
 ### 6.6 防火墙
@@ -305,7 +345,7 @@ sudo ufw allow 80,443/tcp
 
 你已经有 HTTPS，所以**不需要再跑 certbot**（除非 6.3 里发现证书不覆盖新域名）。只需确认三件事：
 
-1. `.env` 里 `NEXT_PUBLIC_SITE_URL="https://blog.heartgo.top"`（用于 sitemap.xml / robots.txt）；
+1. `.env` 里 `NEXT_PUBLIC_SITE_URL="https://me.heartgo.top"`（用于 sitemap.xml / robots.txt）；
 2. `.env` 里**不要**出现 `COOKIE_SECURE=false`。生产环境默认只在 HTTPS 下发送会话 Cookie，这正是我们想要的；
 3. 执行 `pm2 reload personal-site` 让 `.env` 生效。
 
@@ -359,6 +399,7 @@ pm2 reload personal-site     # 平滑重启，几乎无停机
 | 现象 | 原因与解决 |
 | --- | --- |
 | 访问域名返回 **502 Bad Gateway** | Node 进程没起来。执行 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。 |
+| 后台登录提示「用户名或密码错误」 | **最常见的原因不是密码错了，而是 `.env` 改了但数据库没同步。** `.env` 里的 `ADMIN_PASSWORD` 只在 `db:seed` 时写入数据库一次；先 seed 后改 `.env` 的话，登录用的还是旧密码。解法：`SEED_DEMO=false npm run db:seed` 重跑一次，然后用 `.env` 里的原文登录（详见第 4 节说明）。若重跑后仍失败，用 `sqlite3 prisma/prod.db "SELECT id, username FROM User;"` 确认账号是否真的存在。 |
 | 登录后立刻又回到登录页 | Cookie 的 `Secure` 标记与访问协议不匹配。你已经用 HTTPS，正常情况下不会出现；若临时用 http 访问，需在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`，排查完记得删掉。 |
 | 上传图片后访问 404 | 确认进程有写权限：`ls -ld /var/www/personal-site/data`；再确认 `UPLOAD_DIR`（若配置了）指向的目录存在且可写。图片是应用运行时读取的，**不要**给 nginx 配 `/uploads/` 的 alias。 |
 | 上传图片成功但前台不显示 | 浏览器控制台看 `/uploads/xxx` 的状态码。404 说明文件没落盘（看 `pm2 logs` 有无权限报错）；502 说明应用进程挂了。 |

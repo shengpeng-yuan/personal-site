@@ -27,7 +27,7 @@
   ```nginx
   server {
       listen 443 ssl;
-      server_name blog.heartgo.top;
+      server_name me.heartgo.top;
 
       ssl_certificate     /etc/letsencrypt/live/heartgo.top/fullchain.pem;
       ssl_certificate_key /etc/letsencrypt/live/heartgo.top/privkey.pem;
@@ -112,6 +112,24 @@ Markdown 渲染用了 `rehype-raw`，所以正文里写的 HTML 会被真实执�
 ---
 
 ## 二、部署与运维的坑
+
+> ### ⚠️ 先说一个最常被误解的点：改了 `.env` 里的密码却登录不上
+>
+> `.env` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` **不是登录凭据**，它们只在 `db:seed` 执行的那一刻被读一次，然后哈希写进数据库。登录只比对数据库里的哈希。
+>
+> 所以「先 seed、后改 `.env`」是无效的，必须重跑一次 seed 才会把新密码写进去：
+>
+> ```bash
+> cd /var/www/personal-site
+> grep ADMIN_ .env                  # 确认拼写（注意 amdin / admin 这种笔误）
+> SEED_DEMO=false npm run db:seed   # 把新密码写入数据库
+> ```
+>
+> 之后用 `.env` 里的原文登录。这也是**忘记后台密码时的找回方式**。
+> 平时改密码走后台「站点设置 → 修改登录密码」即可，不用动 `.env`。
+>
+> 另外 `db:seed` 是幂等的（`upsert`），重复跑不会产生重复数据。
+> 但注意：不加 `SEED_DEMO=false` 的话，它会在缺少示例内容时**补写** 3 篇示例文章和 4 个示例项目。
 
 ### 1. ⚠️ 服务器时区（很容易忽略，但一定会遇到）
 
