@@ -11,8 +11,8 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| 前台首页 | `https://你的域名/` → 自动跳转到 `/zh`（按浏览器语言判断中/英） |
-| 后台管理 | `https://你的域名/admin` |
+| 前台首页 | `https://blog.heartgo.top/` → 自动跳转到 `/zh`（按浏览器语言判断中/英） |
+| 后台管理 | `https://blog.heartgo.top/admin` |
 | 默认管理员 | 用户名 `admin`，密码 `admin123456`（**上线后第一件事就是改掉它**，后台「站点设置 → 修改登录密码」） |
 | 数据库 | SQLite 单文件，默认 `prisma/prod.db`（下文会改成绝对路径） |
 | 图片上传 | 保存在项目根目录的 `data/uploads/`，部署更新时**不要删除该目录**（可用 `UPLOAD_DIR` 环境变量改到别处） |
@@ -112,12 +112,13 @@ ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="改成你自己的强密码"
 
 # 站点地址：用于 sitemap.xml / robots.txt，填你的正式域名
-NEXT_PUBLIC_SITE_URL="https://你的域名"
+NEXT_PUBLIC_SITE_URL="https://blog.heartgo.top"
 
 # 上传图片的存放目录（可选）。不填则默认使用 <项目目录>/data/uploads
 # UPLOAD_DIR="/var/www/personal-site-data/uploads"
 
-# 如果你暂时还没配 HTTPS，只是用 http 调试，请加上这行，否则无法登录后台
+# 注意：你的站点已经有 HTTPS，所以不要设置 COOKIE_SECURE=false。
+# 只有临时用 http 访问排查问题时才需要加这行，排查完请删除。
 # COOKIE_SECURE=false
 ```
 
@@ -181,24 +182,40 @@ curl -I http://127.0.0.1:3000
 
 ## 6. 配置 nginx 反向代理
 
-新建配置文件：
+### 6.1 先找到现有配置放在哪
+
+你已经有 HTTPS 站点（例如 `day.heartgo.top`），新站点建议**在同一个目录下新建一个配置文件**，方便统一管理：
 
 ```bash
-sudo nano /etc/nginx/conf.d/personal-site.conf
+# 找到现有配置写在哪个文件里
+grep -rl "day.heartgo.top" /etc/nginx/
+
+# 假设输出是 /etc/nginx/conf.d/day.conf，就在同目录新建：
+sudo nano /etc/nginx/conf.d/blog.conf
 ```
 
-粘贴以下内容（**把 `你的域名` 换成实际域名**）：
+> 项目目录 `/var/www/personal-site` 只是本文档的约定，你可以放到任何位置（比如和静态站放一起）。
+> 唯一要求：下面 `alias` 里的路径要和实际项目路径一致。
+
+### 6.2 配置文件内容
+
+写法跟你现有的配置保持一致（`listen 443 ssl` + 显式证书路径）。下面的 `blog.heartgo.top` 是示例，换成你实际要用的子域名即可：
 
 ```nginx
 server {
-    listen 80;
-    listen [::]:80;
-    server_name 你的域名 www.你的域名;
+    listen 443 ssl;
+    server_name blog.heartgo.top;             # ← 改成你要用的域名
 
-    # 允许上传最大 10MB 的图片
+    ssl_certificate     /etc/letsencrypt/live/heartgo.top/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/heartgo.top/privkey.pem;
+
+    # 允许上传图片（后台单张限 5MB，这里留点余量）
     client_max_body_size 10M;
 
-    # 让 Next.js 静态资源由 nginx 直接返回，速度更快
+    # 原配置里的 root / index / try_files $uri $uri/ /index.html 是给静态站点用的，
+    # 这里不需要：页面由 Node 应用生成，静态资源交给下面的 location 处理。
+
+    # 构建产物由 nginx 直接读磁盘返回，不走 Node，和你的静态站思路一致
     location /_next/static/ {
         alias /var/www/personal-site/.next/static/;
         expires 365d;
@@ -206,11 +223,8 @@ server {
         access_log off;
     }
 
-    # 用户上传的图片由 Next.js 应用自身读取返回（无需额外配置）。
-    # 因为上传文件是运行时写入的，放 public/ 下 Next.js 生产模式不会提供，
-    # 所以这里统一走 location / 反向代理到应用，不要给 /uploads/ 单独配 alias。
-
-    # 其余请求交给 Next.js
+    # 其余请求全部交给 Node 应用：
+    # / 、/zh 、/en 、/blog 、/admin 、/api 、/uploads/... 都走这里
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -226,14 +240,53 @@ server {
 }
 ```
 
-检查并重载：
+> 不需要给 `/uploads/` 单独配 `alias`：上传的图片是运行时写入的，由应用自身读盘返回（原因见 `docs/NOTES.md` 第 2.6 节）。
+>
+> 可选：如果你的 nginx 版本 ≥ 1.25.1，可以在 `listen 443 ssl;` 下面加一行 `http2 on;` 开启 HTTP/2（旧版本写成 `listen 443 ssl http2;`）。本站静态资源较多，开 HTTP/2 能明显减少握手开销。你的现有配置没开，所以这里默认保持一致。
+
+### 6.3 证书怎么处理（重要）
+
+你的证书路径是 `live/heartgo.top/`，但服务的是 `day.heartgo.top` —— 说明这是**通配符证书**（`*.heartgo.top`）。这种情况下新站点**直接复用上面那两行证书配置即可，无需重新签发**。
+
+先确认证书覆盖哪些域名：
 
 ```bash
-sudo nginx -t          # 必须输出 syntax is ok / test is successful
-sudo systemctl reload nginx
+sudo certbot certificates
+# 或者直接看证书内容
+sudo openssl x509 -in /etc/letsencrypt/live/heartgo.top/cert.pem -noout -text | grep -A1 "Subject Alternative Name"
 ```
 
-然后开放防火墙的 80 / 443 端口：
+- 输出里有 `DNS:*.heartgo.top` → **复用即可**，跳到 6.4；
+- 只有 `DNS:day.heartgo.top` 这类具体域名 → 需要给新域名单独签发：
+
+```bash
+sudo certbot certonly --nginx -d blog.heartgo.top
+# 签发后证书路径变成 /etc/letsencrypt/live/blog.heartgo.top/，记得同步改上面的 ssl_certificate
+```
+
+> 用 `certonly` 而不是 `certbot --nginx`：后者会去自动改写你的 server 块，而这里的 server 块已经手写好了，只需要证书。
+
+### 6.4 让 80 端口自动跳转到 HTTPS（可选）
+
+如果希望访问 `http://blog.heartgo.top` 时也能自动跳到 HTTPS，再加一个 80 的 server 块：
+
+```nginx
+server {
+    listen 80;
+    server_name blog.heartgo.top;
+    return 301 https://$host$request_uri;
+}
+```
+
+### 6.5 检查并重载
+
+```bash
+sudo nginx -t                          # 必须输出 syntax is ok / test is successful
+sudo systemctl reload nginx
+curl -I https://blog.heartgo.top       # 期望 307（跳转到 /zh）
+```
+
+### 6.6 防火墙
 
 ```bash
 # ufw（Ubuntu 常见）
@@ -243,28 +296,21 @@ sudo ufw allow 80,443/tcp
 # sudo firewall-cmd --permanent --add-service=http --add-service=https && sudo firewall-cmd --reload
 ```
 
-> 云服务商（阿里云/腾讯云/AWS 等）还有一层**安全组**，记得在控制台放行 80 与 443。
-
-现在用浏览器访问 `http://你的域名` 应该能看到站点。
+> 云服务商（阿里云/腾讯云/AWS 等）还有一层**安全组**，需要在控制台放行 80 与 443。
+> 你已经跑着 HTTPS 站点，这一步大概率早就通了。
 
 ---
 
-## 7. 配置 HTTPS（强烈建议）
+## 7. 确认 HTTPS 相关配置
 
-没有 HTTPS 时，后台登录 Cookie 需要 `COOKIE_SECURE=false` 才能工作，而且很不安全。用 Let's Encrypt 免费证书：
+你已经有 HTTPS，所以**不需要再跑 certbot**（除非 6.3 里发现证书不覆盖新域名）。只需确认三件事：
 
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d 你的域名 -d www.你的域名
-```
+1. `.env` 里 `NEXT_PUBLIC_SITE_URL="https://blog.heartgo.top"`（用于 sitemap.xml / robots.txt）；
+2. `.env` 里**不要**出现 `COOKIE_SECURE=false`。生产环境默认只在 HTTPS 下发送会话 Cookie，这正是我们想要的；
+3. 执行 `pm2 reload personal-site` 让 `.env` 生效。
 
-按提示选择「自动把 HTTP 重定向到 HTTPS」。certbot 会自动改好上面的 nginx 配置并配置自动续期。
-
-配好 HTTPS 后：
-
-1. 编辑 `.env`，确认 `NEXT_PUBLIC_SITE_URL="https://你的域名"`；
-2. **删掉** `COOKIE_SECURE=false` 这一行（生产环境默认只在 HTTPS 下发送会话 Cookie）；
-3. 重启服务：`pm2 reload personal-site`。
+> ⚠️ 只有当你临时用 http 访问站点排查问题时，才需要临时加 `COOKIE_SECURE=false`，
+> 否则会因为 Cookie 带 `Secure` 标记而登录不上。排查完记得删掉并重启。
 
 ---
 
@@ -313,7 +359,7 @@ pm2 reload personal-site     # 平滑重启，几乎无停机
 | 现象 | 原因与解决 |
 | --- | --- |
 | 访问域名返回 **502 Bad Gateway** | Node 进程没起来。执行 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。 |
-| 登录后立刻又回到登录页 | HTTP 环境下 Cookie 被浏览器拒收。在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`；配好 HTTPS 后应删掉此行。 |
+| 登录后立刻又回到登录页 | Cookie 的 `Secure` 标记与访问协议不匹配。你已经用 HTTPS，正常情况下不会出现；若临时用 http 访问，需在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`，排查完记得删掉。 |
 | 上传图片后访问 404 | 确认进程有写权限：`ls -ld /var/www/personal-site/data`；再确认 `UPLOAD_DIR`（若配置了）指向的目录存在且可写。图片是应用运行时读取的，**不要**给 nginx 配 `/uploads/` 的 alias。 |
 | 上传图片成功但前台不显示 | 浏览器控制台看 `/uploads/xxx` 的状态码。404 说明文件没落盘（看 `pm2 logs` 有无权限报错）；502 说明应用进程挂了。 |
 | 后台登录提示「尝试次数过多」 | 登录接口有 10 分钟 10 次的限流保护。等待 10 分钟，或重启进程 `pm2 restart personal-site`。 |
@@ -384,13 +430,14 @@ DATABASE_URL="mysql://用户名:密码@127.0.0.1:3306/personal_site"
 
 - [ ] `.env` 中 `JWT_SECRET` 已替换为随机字符串
 - [ ] `.env` 中 `DATABASE_URL` 使用绝对路径
-- [ ] `.env` 中 `NEXT_PUBLIC_SITE_URL` 填的是正式域名
+- [ ] `.env` 中 `NEXT_PUBLIC_SITE_URL` 填的是正式域名（`https://`）
+- [ ] `.env` 中没有残留 `COOKIE_SECURE=false`
 - [ ] 后台默认密码 `admin123456` 已修改
 - [ ] 服务器时区已设置（见 `docs/NOTES.md` 第 2 节，否则文章时间会差 8 小时）
 - [ ] `npm run build` 成功，`pm2 status` 显示 online
 - [ ] `pm2 startup` + `pm2 save` 已执行，重启服务器后站点能自动恢复
-- [ ] `nginx -t` 通过，域名能正常访问
-- [ ] HTTPS 证书已签发，HTTP 自动跳转 HTTPS
+- [ ] `nginx -t` 通过，`https://你的域名` 能正常访问（307 跳到 /zh）
+- [ ] 证书已覆盖新域名（`sudo certbot certificates` 确认，`*.heartgo.top` 通配符可直接复用）
 - [ ] 数据库 + `data/uploads/` 备份 cron 已配置
 - [ ] 发一条测试留言，确认后台「留言」能看到
 - [ ] 在后台「站点设置」上传一张头像，确认前台能正常显示（验证上传链路）

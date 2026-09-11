@@ -22,15 +22,56 @@
 
 `/admin` 是可以被扫描器直接猜到的。三种加固方式，任选其一：
 
-- **最简单的**：nginx 里给 `/admin` 加 IP 白名单（只允许你的常用 IP 访问）：
+- **最简单的**：nginx 里给 `/admin` 加 IP 白名单（只允许你的常用 IP 访问）。在你的 443 server 块里加一个 `location /admin`，其余照抄 DEPLOY.md 第 6.2 节的配置：
+
   ```nginx
-  location /admin {
-      allow 1.2.3.4;      # 你的 IP
-      deny all;
-      proxy_pass http://127.0.0.1:3000;
-      include /etc/nginx/proxy_params;
+  server {
+      listen 443 ssl;
+      server_name blog.heartgo.top;
+
+      ssl_certificate     /etc/letsencrypt/live/heartgo.top/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/heartgo.top/privkey.pem;
+
+      client_max_body_size 10M;
+
+      # 只允许指定 IP 访问后台
+      location /admin {
+          allow 1.2.3.4;          # ← 你的固定 IP，多个 IP 就写多行 allow
+          deny all;
+
+          proxy_pass http://127.0.0.1:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+      }
+
+      location /_next/static/ {
+          alias /var/www/personal-site/.next/static/;
+          expires 365d;
+          add_header Cache-Control "public, immutable";
+          access_log off;
+      }
+
+      location / {
+          proxy_pass http://127.0.0.1:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_cache_bypass $http_upgrade;
+          proxy_read_timeout 60s;
+      }
   }
   ```
+
+  > - nginx 的前缀匹配是「最长优先」，所以 `location /admin` 和 `location /` 的书写顺序无所谓。
+  > - **如果你的宽带是动态 IP，不要用这个方案**，否则换个网络就把自己锁在外面了 —— 改用下面两种。
+  > - 白名单只挡页面，`/api/*` 不受影响；接口本身已有登录校验，不必额外配置。
 - 给 `/admin` 再加一层 nginx Basic Auth（`htpasswd`），双保险；
 - 改一下后台路径（需要改动 `middleware.ts` 和 `app/admin/` 目录名，稍麻烦）。
 
