@@ -1,0 +1,86 @@
+// Prisma schema —— 个人站点数据模型
+// 数据库：SQLite（零依赖、单文件、易备份）。如需换成 MySQL/PostgreSQL，
+// 只需修改 datasource 的 provider 与 DATABASE_URL，其余代码无需改动。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 后台管理员账号
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  nickname     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// 博客文章（中英双语，正文为 Markdown）
+model Post {
+  id          Int       @id @default(autoincrement())
+  slug        String    @unique
+  titleZh     String
+  titleEn     String    @default("")
+  excerptZh   String    @default("")
+  excerptEn   String    @default("")
+  contentZh   String    @default("")
+  contentEn   String    @default("")
+  cover       String?
+  tags        String    @default("[]") // JSON 字符串数组
+  published   Boolean   @default(false)
+  featured    Boolean   @default(false)
+  views       Int       @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+}
+
+/// 项目作品
+model Project {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique
+  nameZh    String
+  nameEn    String   @default("")
+  descZh    String   @default("")
+  descEn    String   @default("")
+  contentZh String   @default("")
+  contentEn String   @default("")
+  cover     String?
+  tech      String   @default("[]") // JSON 字符串数组
+  repoUrl   String?
+  demoUrl   String?
+  status    String   @default("active") // active | archived | wip
+  featured  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+}
+
+/// 站点设置（键值对，值为字符串，复杂结构以 JSON 存储）
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// 访客留言
+model Message {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  content   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read])
+}

@@ -1,0 +1,285 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ 设计令牌 ============ */
+@layer base {
+  :root {
+    --bg: 250 250 252;
+    --surface: 255 255 255;
+    --surface-muted: 244 245 249;
+    --border: 226 232 240;
+    --fg: 15 23 42;
+    --fg-muted: 100 116 139;
+    --ring: 99 102 241;
+  }
+
+  .dark {
+    --bg: 8 13 23;
+    --surface: 17 24 39;
+    --surface-muted: 24 33 50;
+    --border: 39 51 71;
+    --fg: 226 232 240;
+    --fg-muted: 148 163 184;
+    --ring: 129 140 248;
+  }
+
+  * {
+    border-color: rgb(var(--border));
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--fg));
+    @apply antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    background-color: rgb(var(--ring) / 0.25);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--fg-muted) / 0.35);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--fg-muted) / 0.6);
+    background-clip: content-box;
+  }
+}
+
+/* ============ 通用组件样式 ============ */
+@layer components {
+  .surface {
+    background-color: rgb(var(--surface));
+  }
+
+  .surface-muted {
+    background-color: rgb(var(--surface-muted));
+  }
+
+  .text-muted {
+    color: rgb(var(--fg-muted));
+  }
+
+  .card {
+    @apply rounded-2xl border transition duration-300;
+    background-color: rgb(var(--surface));
+    border-color: rgb(var(--border));
+  }
+
+  .card-hover {
+    @apply hover:-translate-y-1 hover:shadow-soft;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed
+      disabled:opacity-60;
+    --tw-ring-color: rgb(var(--ring));
+    --tw-ring-offset-color: rgb(var(--bg));
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 text-white shadow-glow hover:bg-brand-500 active:bg-brand-700;
+  }
+
+  .btn-ghost {
+    @apply border text-[rgb(var(--fg))] hover:bg-black/[0.04] dark:hover:bg-white/[0.06];
+    border-color: rgb(var(--border));
+  }
+
+  .btn-danger {
+    @apply bg-rose-600 text-white hover:bg-rose-500;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .input {
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition
+      placeholder:text-[rgb(var(--fg-muted))] focus:ring-2;
+    background-color: rgb(var(--surface));
+    border-color: rgb(var(--border));
+    --tw-ring-color: rgb(var(--ring) / 0.4);
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--fg-muted));
+  }
+
+  .badge-brand {
+    @apply bg-brand-500/10 text-brand-600 dark:bg-brand-400/15 dark:text-brand-300;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium;
+  }
+
+  .section-title {
+    @apply text-2xl font-bold tracking-tight sm:text-3xl;
+  }
+
+  /* 顶部导航的毛玻璃效果 */
+  .glass {
+    background-color: rgb(var(--bg) / 0.72);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+  }
+
+  /* 渐变文字 */
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-500 via-violet-500 to-cyan-400 bg-clip-text text-transparent;
+  }
+
+  /* 首屏背景装饰 */
+  .aurora-bg {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+  .aurora-blob {
+    @apply absolute rounded-full blur-3xl opacity-40 dark:opacity-30;
+  }
+}
+
+/* ============ Markdown 正文排版 ============ */
+@layer components {
+  .markdown {
+    @apply text-[15px] leading-7;
+    color: rgb(var(--fg));
+  }
+  .markdown > * + * {
+    @apply mt-4;
+  }
+  .markdown h2 {
+    @apply mt-10 mb-3 scroll-mt-24 text-xl font-bold tracking-tight sm:text-2xl;
+  }
+  .markdown h3 {
+    @apply mt-8 mb-2 scroll-mt-24 text-lg font-semibold;
+  }
+  .markdown h4 {
+    @apply mt-6 mb-2 scroll-mt-24 font-semibold;
+  }
+  .markdown p {
+    @apply leading-7;
+  }
+  .markdown a {
+    @apply font-medium text-brand-600 underline decoration-brand-400/40 underline-offset-4 transition
+      hover:decoration-brand-500 dark:text-brand-300;
+  }
+  .markdown strong {
+    @apply font-semibold;
+  }
+  .markdown ul {
+    @apply list-disc space-y-1.5 pl-5;
+  }
+  .markdown ol {
+    @apply list-decimal space-y-1.5 pl-5;
+  }
+  .markdown blockquote {
+    @apply rounded-r-xl border-l-4 py-2 pl-4 italic;
+    border-color: rgb(var(--ring) / 0.6);
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--fg-muted));
+  }
+  .markdown hr {
+    @apply my-10 border-t;
+  }
+  .markdown img {
+    @apply mx-auto rounded-xl border;
+  }
+  .markdown table {
+    @apply block w-full overflow-x-auto border-separate border-spacing-0 text-sm;
+  }
+  .markdown thead th {
+    @apply border-b px-3 py-2 text-left font-semibold;
+    background-color: rgb(var(--surface-muted));
+  }
+  .markdown tbody td {
+    @apply border-b px-3 py-2;
+  }
+  .markdown code {
+    @apply rounded-md px-1.5 py-0.5 text-[0.85em] font-medium;
+    background-color: rgb(var(--surface-muted));
+    color: rgb(var(--fg));
+    font-family: theme('fontFamily.mono');
+  }
+  .markdown pre {
+    @apply overflow-x-auto rounded-xl border p-4 text-[13px] leading-6;
+    background-color: #0d1117;
+    border-color: rgb(var(--border));
+  }
+  .markdown pre code {
+    @apply bg-transparent p-0 text-slate-100;
+  }
+  .markdown :not(pre) > code {
+    border: 1px solid rgb(var(--border));
+  }
+}
+
+/* ============ 代码高亮主题（GitHub Dark 精简版） ============ */
+.hljs-comment,
+.hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+  color: #ff7b72;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute,
+.hljs-meta .hljs-string {
+  color: #a5d6ff;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-built_in,
+.hljs-class .hljs-title {
+  color: #d2a8ff;
+}
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: #79c0ff;
+}
+.hljs-deletion {
+  color: #ffa198;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-meta {
+  color: #79c0ff;
+}
