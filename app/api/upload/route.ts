@@ -3,13 +3,13 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { ALLOWED_EXTENSIONS, UPLOAD_DIR } from '@/lib/uploads';
 
 export const runtime = 'nodejs';
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif'];
 
-/** 上传图片（保存到 public/uploads，生产环境请确保该目录持久化） */
+/** 上传图片，返回可直接引用的地址 /uploads/<filename> */
 export async function POST(request: Request) {
   const auth = await requireAuth();
   if (!auth.ok) return auth.response;
@@ -33,10 +33,9 @@ export async function POST(request: Request) {
   }
 
   const filename = `${Date.now()}-${randomUUID().slice(0, 8)}${extension}`;
-  const directory = path.join(process.cwd(), 'public', 'uploads');
 
-  await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, filename), Buffer.from(await file.arrayBuffer()));
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  await writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(await file.arrayBuffer()));
 
   return NextResponse.json({ url: `/uploads/${filename}` }, { status: 201 });
 }
