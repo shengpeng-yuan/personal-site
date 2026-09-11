@@ -20,9 +20,20 @@ export type SiteSettings = {
   resumeUrl: string;
   footerZh: string;
   footerEn: string;
+  /** ICP 备案号与工信部备案系统链接 */
   icp: string;
+  icpUrl: string;
+  /** 公安联网备案号与全国互联网安全管理服务平台链接 */
+  police: string;
+  policeUrl: string;
   skills: string[];
   available: boolean;
+  /** 是否按访客本地时间自动切换主题 */
+  themeScheduleEnabled: boolean;
+  /** 亮色时段开始时间，格式 HH:MM */
+  themeLightStart: string;
+  /** 亮色时段结束时间，格式 HH:MM（其余时段为暗色，支持跨午夜） */
+  themeLightEnd: string;
 };
 
 export const defaultSettings: SiteSettings = {
@@ -48,12 +59,20 @@ export const defaultSettings: SiteSettings = {
   footerZh: '用代码构建有趣的东西。',
   footerEn: 'Building interesting things with code.',
   icp: '',
+  icpUrl: 'https://beian.miit.gov.cn/',
+  police: '',
+  policeUrl: '',
   skills: ['TypeScript', 'React', 'Next.js', 'Node.js', 'Python', 'PostgreSQL', 'Docker', 'AWS'],
   available: true,
+  themeScheduleEnabled: true,
+  themeLightStart: '07:00',
+  themeLightEnd: '19:00',
 };
 
 const JSON_KEYS = new Set<keyof SiteSettings>(['skills']);
-const BOOLEAN_KEYS = new Set<keyof SiteSettings>(['available']);
+const BOOLEAN_KEYS = new Set<keyof SiteSettings>(['available', 'themeScheduleEnabled']);
+const TIME_KEYS = new Set<keyof SiteSettings>(['themeLightStart', 'themeLightEnd']);
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** 读取站点设置，缺失的键回退到默认值 */
 export async function getSettings(): Promise<SiteSettings> {
@@ -73,6 +92,11 @@ export async function getSettings(): Promise<SiteSettings> {
       }
     } else if (BOOLEAN_KEYS.has(key)) {
       (settings[key] as unknown) = row.value === 'true';
+    } else if (TIME_KEYS.has(key)) {
+      // 时间格式非法时回退到默认值，避免前台脚本计算出奇怪的主题
+      (settings[key] as unknown) = TIME_PATTERN.test(row.value)
+        ? row.value
+        : defaultSettings[key];
     } else {
       (settings[key] as unknown) = row.value;
     }

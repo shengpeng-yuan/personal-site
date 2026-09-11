@@ -107,17 +107,8 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">ICP 备案号</label>
-              <input
-                value={form.icp}
-                onChange={(event) => update('icp', event.target.value)}
-                placeholder="例如：京ICP备00000000号"
-                className="input"
-              />
-            </div>
-            <label className="flex items-end gap-3 pb-2.5 text-sm">
+          <div className="mt-4">
+            <label className="flex items-center gap-3 text-sm">
               <input
                 type="checkbox"
                 checked={form.available}
@@ -127,6 +118,101 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
               显示「可接受合作邀请」状态
             </label>
           </div>
+        </section>
+
+        {/* 备案信息 */}
+        <section className="card p-5">
+          <h2 className="font-semibold">备案信息</h2>
+          <p className="mt-1.5 text-xs text-muted">
+            备案号会展示在页脚，并链接到对应的备案系统（符合备案悬挂要求）。
+            链接留空时只显示文字，不做跳转。
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">ICP 备案号</label>
+              <input
+                value={form.icp}
+                onChange={(event) => update('icp', event.target.value)}
+                placeholder="例如：沪ICP备00000000号"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">ICP 备案链接</label>
+              <input
+                value={form.icpUrl}
+                onChange={(event) => update('icpUrl', event.target.value)}
+                placeholder="https://beian.miit.gov.cn/"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">公安备案号</label>
+              <input
+                value={form.police}
+                onChange={(event) => update('police', event.target.value)}
+                placeholder="例如：沪公网安备 31011502000000号"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">公安备案链接</label>
+              <input
+                value={form.policeUrl}
+                onChange={(event) => update('policeUrl', event.target.value)}
+                placeholder="https://beian.mps.gov.cn/#/query/webSearch?code=31011502000000"
+                className="input"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 主题 */}
+        <section className="card p-5">
+          <h2 className="font-semibold">主题</h2>
+          <p className="mt-1.5 text-xs text-muted">
+            访客首次进入站点时，按「访客本地时间」自动选择亮色或暗色；访客也可以点右上角按钮手动切换，
+            手动选择后优先于下面的时段规则。
+          </p>
+
+          <label className="mt-4 flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={form.themeScheduleEnabled}
+              onChange={(event) => update('themeScheduleEnabled', event.target.checked)}
+              className="h-4 w-4 accent-brand-600"
+            />
+            启用按时段自动切换主题
+          </label>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">亮色时段开始</label>
+              <input
+                type="time"
+                value={form.themeLightStart}
+                onChange={(event) => update('themeLightStart', event.target.value)}
+                disabled={!form.themeScheduleEnabled}
+                className="input disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="label">亮色时段结束</label>
+              <input
+                type="time"
+                value={form.themeLightEnd}
+                onChange={(event) => update('themeLightEnd', event.target.value)}
+                disabled={!form.themeScheduleEnabled}
+                className="input disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          <p className="mt-2 text-xs text-muted">
+            该时段内显示亮色主题，其余时间显示暗色主题。支持跨午夜（例如 20:00 → 06:00）。
+            关闭上面的开关后，改为跟随访客的系统深色模式偏好。
+          </p>
         </section>
 
         {/* 个人介绍 */}

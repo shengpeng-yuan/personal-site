@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowRight, Eye, FileText, FolderGit2, MapPin } from 'lucide-react';
 import { PostCard } from '@/components/PostCard';
 import { ProjectCard } from '@/components/ProjectCard';
+import { SecretAdminClick } from '@/components/SecretAdminEntry';
 import { getFeaturedPosts, getProjects, getSiteStats } from '@/lib/content';
 import { getDictionary, isLocale } from '@/lib/i18n';
 import { getSettings, localizeSettings } from '@/lib/settings';
@@ -85,34 +86,37 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             {/* 头像卡片 */}
             <div className="relative mx-auto w-full max-w-sm animate-fade-up [animation-delay:120ms]">
               <div className="absolute -inset-4 rounded-[2rem] bg-gradient-to-tr from-brand-500/20 via-violet-500/10 to-cyan-400/20 blur-2xl" />
-              <div className="card relative overflow-hidden p-6">
-                <div className="mx-auto grid h-32 w-32 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 to-violet-500 text-4xl font-bold text-white shadow-glow">
-                  {settings.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={settings.avatar} alt={localized.author} className="h-full w-full object-cover" />
-                  ) : (
-                    initial
-                  )}
-                </div>
+              {/* 隐藏入口：3 秒内连续点击这张名片 5 次可进入后台 */}
+              <SecretAdminClick>
+                <div className="card relative overflow-hidden p-6">
+                  <div className="mx-auto grid h-32 w-32 place-items-center overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 to-violet-500 text-4xl font-bold text-white shadow-glow">
+                    {settings.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={settings.avatar} alt={localized.author} className="h-full w-full object-cover" />
+                    ) : (
+                      initial
+                    )}
+                  </div>
 
-                <div className="mt-5 text-center">
-                  <div className="text-lg font-semibold">{localized.author}</div>
-                  {localized.location && (
-                    <div className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {localized.location}
-                    </div>
-                  )}
-                </div>
+                  <div className="mt-5 text-center">
+                    <div className="text-lg font-semibold">{localized.author}</div>
+                    {localized.location && (
+                      <div className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {localized.location}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="mt-5 flex flex-wrap justify-center gap-1.5">
-                  {settings.skills.slice(0, 6).map((skill) => (
-                    <span key={skill} className="badge">
-                      {skill}
-                    </span>
-                  ))}
+                  <div className="mt-5 flex flex-wrap justify-center gap-1.5">
+                    {settings.skills.slice(0, 6).map((skill) => (
+                      <span key={skill} className="badge">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </SecretAdminClick>
             </div>
           </div>
         </div>

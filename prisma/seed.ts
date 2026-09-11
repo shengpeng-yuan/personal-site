@@ -342,6 +342,9 @@ I enjoy tinkering with tools and automating repetitive work. This site is where 
   footerZh: '用代码构建有趣的东西。',
   footerEn: 'Building interesting things with code.',
   icp: '',
+  icpUrl: 'https://beian.miit.gov.cn/',
+  police: '',
+  policeUrl: '',
   skills: JSON.stringify([
     'TypeScript',
     'React',
@@ -355,6 +358,9 @@ I enjoy tinkering with tools and automating repetitive work. This site is where 
     'AWS',
   ]),
   available: 'true',
+  themeScheduleEnabled: 'true',
+  themeLightStart: '07:00',
+  themeLightEnd: '19:00',
 };
 
 async function main() {

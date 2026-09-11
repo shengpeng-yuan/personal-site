@@ -7,14 +7,16 @@ import { Menu, Sparkles, X } from 'lucide-react';
 import { LangSwitcher } from '@/components/LangSwitcher';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import type { Dictionary, Locale } from '@/lib/i18n';
+import type { ThemeSchedule } from '@/lib/theme';
 
 type Props = {
   locale: Locale;
   dict: Dictionary;
   siteTitle: string;
+  themeSchedule: ThemeSchedule;
 };
 
-export function Header({ locale, dict, siteTitle }: Props) {
+export function Header({ locale, dict, siteTitle, themeSchedule }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -65,7 +67,15 @@ export function Header({ locale, dict, siteTitle }: Props) {
           <div className="hidden sm:block">
             <LangSwitcher current={locale} label={dict.common.language} />
           </div>
-          <ThemeToggle label={dict.common.theme} />
+          <ThemeToggle
+            schedule={themeSchedule}
+            labels={{
+              theme: dict.common.theme,
+              auto: dict.common.themeAuto,
+              light: dict.common.themeLight,
+              dark: dict.common.themeDark,
+            }}
+          />
           <button
             type="button"
             aria-label="menu"

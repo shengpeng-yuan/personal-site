@@ -36,6 +36,9 @@ const zh = {
     share: '分享',
     relatedPosts: '相关文章',
     theme: '主题',
+    themeAuto: '跟随时间',
+    themeLight: '亮色',
+    themeDark: '暗色',
     language: '语言',
   },
   nav: {
@@ -134,6 +137,9 @@ const en: Dictionary = {
     share: 'Share',
     relatedPosts: 'Related posts',
     theme: 'Theme',
+    themeAuto: 'Follow time',
+    themeLight: 'Light',
+    themeDark: 'Dark',
     language: 'Language',
   },
   nav: {

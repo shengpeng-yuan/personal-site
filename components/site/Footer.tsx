@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Github, Globe, Linkedin, Mail, MessageCircle, Twitter } from 'lucide-react';
+import { Github, Globe, Linkedin, Mail, MessageCircle, ShieldCheck, Twitter } from 'lucide-react';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import type { SiteSettings } from '@/lib/settings';
 import { localizeSettings } from '@/lib/settings';
@@ -10,6 +10,31 @@ const socialLinks = [
   { key: 'linkedin', icon: Linkedin, label: 'LinkedIn' },
   { key: 'wechat', icon: MessageCircle, label: 'WeChat' },
 ] as const;
+
+/** 备案号：有链接时渲染成外链（符合备案悬挂要求），没有则退化为纯文本 */
+function BeianItem({ text, url, icon }: { text: string; url?: string; icon?: React.ReactNode }) {
+  const content = (
+    <>
+      {icon}
+      {text}
+    </>
+  );
+
+  if (!url) {
+    return <span className="inline-flex items-center gap-1">{content}</span>;
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="inline-flex items-center gap-1 transition hover:text-brand-600 dark:hover:text-brand-300"
+    >
+      {content}
+    </a>
+  );
+}
 
 export function Footer({
   locale,
@@ -103,10 +128,18 @@ export function Footer({
           <p>
             © {year} {localized.author}. {dict.footer.rights}.
           </p>
-          <p>
-            {dict.footer.builtWith}
-            {settings.icp ? ` · ${settings.icp}` : ''}
-          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+            <span>{dict.footer.builtWith}</span>
+            {settings.icp && <BeianItem text={settings.icp} url={settings.icpUrl || undefined} />}
+            {settings.police && (
+              <BeianItem
+                text={settings.police}
+                url={settings.policeUrl || undefined}
+                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              />
+            )}
+          </div>
         </div>
       </div>
     </footer>

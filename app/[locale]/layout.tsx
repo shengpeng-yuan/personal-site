@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { SecretAdminKeyboard } from '@/components/SecretAdminEntry';
 import { SetHtmlLang } from '@/components/SetHtmlLang';
 import { Footer } from '@/components/site/Footer';
 import { Header } from '@/components/site/Header';
@@ -47,12 +48,24 @@ export default async function LocaleLayout({
   const dict = getDictionary(locale);
   const settings = await getSettings();
   const localized = localizeSettings(settings, locale);
+  const themeSchedule = {
+    enabled: settings.themeScheduleEnabled,
+    lightStart: settings.themeLightStart,
+    lightEnd: settings.themeLightEnd,
+  };
 
   return (
     <>
       <SetHtmlLang locale={locale} />
+      {/* 前台隐藏入口：依次敲入密语可进入后台（详见 components/SecretAdminEntry.tsx） */}
+      <SecretAdminKeyboard />
       <div className="flex min-h-screen flex-col">
-        <Header locale={locale} dict={dict} siteTitle={localized.siteTitle} />
+        <Header
+          locale={locale}
+          dict={dict}
+          siteTitle={localized.siteTitle}
+          themeSchedule={themeSchedule}
+        />
         <main className="flex-1">{children}</main>
         <Footer locale={locale} dict={dict} settings={settings} />
       </div>

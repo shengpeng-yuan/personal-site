@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { getSettings } from '@/lib/settings';
+import { buildThemeScript } from '@/lib/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -17,19 +19,21 @@ export const viewport: Viewport = {
   ],
 };
 
-// 在首屏渲染前同步应用主题，避免深色模式闪烁
-const themeScript = `
-(function() {
-  try {
-    var stored = localStorage.getItem('theme');
-    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var dark = stored ? stored === 'dark' : prefersDark;
-    if (dark) document.documentElement.classList.add('dark');
-  } catch (e) {}
-})();
-`;
+// 首屏主题要根据站点设置（亮/暗时段）决定，而设置存在数据库里，
+// 因此所有路由都按请求实时渲染，避免在构建期访问数据库。
+export const dynamic = 'force-dynamic';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const settings = await getSettings();
+
+  // 这段脚本内联在 <head> 中同步执行，必须早于首次绘制，
+  // 否则会出现「先白后黑」的闪动。
+  const themeScript = buildThemeScript({
+    enabled: settings.themeScheduleEnabled,
+    lightStart: settings.themeLightStart,
+    lightEnd: settings.themeLightEnd,
+  });
+
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
