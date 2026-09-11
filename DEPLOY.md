@@ -2,6 +2,8 @@
 
 本文档面向「服务器上已经装好 nginx」的场景，从零把本站部署到线上，并用 nginx 做反向代理 + HTTPS。
 
+> 📘 **部署完成后，日常操作（重启、备份恢复、后台使用、故障排查）请看 [docs/MANUAL.md](./docs/MANUAL.md)**，本文档只负责「第一次怎么装上去」。
+
 技术栈：Next.js 15（前端 + 后端 API 同一个进程） + Prisma + SQLite。
 部署形态：**PM2 守护 `next start` 单进程，nginx 反向代理到 `127.0.0.1:3000`**。
 
@@ -365,7 +367,7 @@ crontab -e
 加入一行（同时备份数据库与上传的图片）：
 
 ```cron
-0 3 * * * cp /var/www/personal-site/prisma/prod.db /var/www/backup/prod-$(date +\%F).db && tar -czf /var/www/backup/uploads-$(date +\%F).tar.gz -C /var/www/personal-site data/uploads && find /var/www/backup -name 'prod-*.db' -o -name 'uploads-*.tar.gz' -mtime +14 -delete
+0 3 * * * cp /var/www/personal-site/prisma/prod.db /var/www/backup/prod-$(date +\%F).db && tar -czf /var/www/backup/uploads-$(date +\%F).tar.gz -C /var/www/personal-site data/uploads && find /var/www/backup \( -name 'prod-*.db' -o -name 'uploads-*.tar.gz' \) -mtime +14 -delete
 ```
 
 并确保备份目录存在：
