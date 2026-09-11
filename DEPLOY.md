@@ -15,7 +15,7 @@
 | 后台管理 | `https://你的域名/admin` |
 | 默认管理员 | 用户名 `admin`，密码 `admin123456`（**上线后第一件事就是改掉它**，后台「站点设置 → 修改登录密码」） |
 | 数据库 | SQLite 单文件，默认 `prisma/prod.db`（下文会改成绝对路径） |
-| 图片上传 | 保存在 `public/uploads/`，部署更新时**不要删除该目录** |
+| 图片上传 | 保存在项目根目录的 `data/uploads/`，部署更新时**不要删除该目录**（可用 `UPLOAD_DIR` 环境变量改到别处） |
 
 > 域名解析：先在域名服务商把 `A 记录` 指到你的服务器公网 IP，再往下做。
 
@@ -114,6 +114,9 @@ ADMIN_PASSWORD="改成你自己的强密码"
 # 站点地址：用于 sitemap.xml / robots.txt，填你的正式域名
 NEXT_PUBLIC_SITE_URL="https://你的域名"
 
+# 上传图片的存放目录（可选）。不填则默认使用 <项目目录>/data/uploads
+# UPLOAD_DIR="/var/www/personal-site-data/uploads"
+
 # 如果你暂时还没配 HTTPS，只是用 http 调试，请加上这行，否则无法登录后台
 # COOKIE_SECURE=false
 ```
@@ -203,13 +206,9 @@ server {
         access_log off;
     }
 
-    # 用户上传的图片
-    location /uploads/ {
-        alias /var/www/personal-site/public/uploads/;
-        expires 30d;
-        access_log off;
-        try_files $uri =404;
-    }
+    # 用户上传的图片由 Next.js 应用自身读取返回（无需额外配置）。
+    # 因为上传文件是运行时写入的，放 public/ 下 Next.js 生产模式不会提供，
+    # 所以这里统一走 location / 反向代理到应用，不要给 /uploads/ 单独配 alias。
 
     # 其余请求交给 Next.js
     location / {
@@ -277,10 +276,10 @@ SQLite 就是一个文件，备份非常简单。用 cron 每天凌晨 3 点备�
 crontab -e
 ```
 
-加入一行：
+加入一行（同时备份数据库与上传的图片）：
 
 ```cron
-0 3 * * * cp /var/www/personal-site/prisma/prod.db /var/www/backup/prod-$(date +\%F).db && find /var/www/backup -name 'prod-*.db' -mtime +14 -delete
+0 3 * * * cp /var/www/personal-site/prisma/prod.db /var/www/backup/prod-$(date +\%F).db && tar -czf /var/www/backup/uploads-$(date +\%F).tar.gz -C /var/www/personal-site data/uploads && find /var/www/backup -name 'prod-*.db' -o -name 'uploads-*.tar.gz' -mtime +14 -delete
 ```
 
 并确保备份目录存在：
@@ -289,7 +288,7 @@ crontab -e
 sudo mkdir -p /var/www/backup && sudo chown -R $USER:$USER /var/www/backup
 ```
 
-> 上传的图片也要一起注意：`public/uploads/` 建议一并纳入备份范围。
+> 需要备份的是两样东西：**数据库文件 `prisma/prod.db`** 和 **上传的图片 `data/uploads/`**。两者都不在 Git 仓库里，丢了就找不回来。
 
 ---
 
@@ -304,7 +303,8 @@ npm run build
 pm2 reload personal-site     # 平滑重启，几乎无停机
 ```
 
-> 更新时不要动 `prisma/prod.db` 和 `public/uploads/`，否则会丢数据和图片。
+> 更新时不要动 `prisma/prod.db` 和 `data/`，否则会丢数据和图片。
+> 建议每次上线前打个 tag，出问题可以快速回滚：`git tag v1.0.1 && git push --tags`，回滚用 `git checkout v1.0.0 && npm ci && npm run build && pm2 reload personal-site`。
 
 ---
 
@@ -314,7 +314,8 @@ pm2 reload personal-site     # 平滑重启，几乎无停机
 | --- | --- |
 | 访问域名返回 **502 Bad Gateway** | Node 进程没起来。执行 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。 |
 | 登录后立刻又回到登录页 | HTTP 环境下 Cookie 被浏览器拒收。在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`；配好 HTTPS 后应删掉此行。 |
-| 上传图片后访问 404 | 检查 `public/uploads/` 是否存在且有写权限：`ls -ld /var/www/personal-site/public/uploads`；以及 nginx 里 `/uploads/` 的 `alias` 路径是否正确。 |
+| 上传图片后访问 404 | 确认进程有写权限：`ls -ld /var/www/personal-site/data`；再确认 `UPLOAD_DIR`（若配置了）指向的目录存在且可写。图片是应用运行时读取的，**不要**给 nginx 配 `/uploads/` 的 alias。 |
+| 上传图片成功但前台不显示 | 浏览器控制台看 `/uploads/xxx` 的状态码。404 说明文件没落盘（看 `pm2 logs` 有无权限报错）；502 说明应用进程挂了。 |
 | 后台登录提示「尝试次数过多」 | 登录接口有 10 分钟 10 次的限流保护。等待 10 分钟，或重启进程 `pm2 restart personal-site`。 |
 | 想换端口（3000 被占用） | 修改启动命令：`pm2 delete personal-site` 然后 `PORT=4000 pm2 start npm --name personal-site -- start`，同时改 nginx 里的 `proxy_pass` 端口。 |
 | 数据库连不上 / 表不存在 | 执行 `npx prisma db push`；确认 `.env` 里 `DATABASE_URL` 是绝对路径且目录可写。 |
@@ -338,7 +339,14 @@ cp -r .next/standalone /var/www/personal-site-standalone
 cp -r .next/static /var/www/personal-site-standalone/.next/static
 cp -r public /var/www/personal-site-standalone/public
 cp .env /var/www/personal-site-standalone/.env
+
+# 上传目录不在 public 下，需要单独指过去（或在 .env 里设置 UPLOAD_DIR 的绝对路径）
+ln -s /var/www/personal-site/data /var/www/personal-site-standalone/data
 ```
+
+> ⚠️ standalone 模式必须在自己的目录下能找到 `data/`，否则上传的图片会 404。
+> 用上面这种软链接是最省事的做法。另外 **数据库路径也必须是绝对路径**，
+> 因为 standalone 的工作目录变了。
 
 3. 用 node 直接启动：
 
@@ -378,8 +386,11 @@ DATABASE_URL="mysql://用户名:密码@127.0.0.1:3306/personal_site"
 - [ ] `.env` 中 `DATABASE_URL` 使用绝对路径
 - [ ] `.env` 中 `NEXT_PUBLIC_SITE_URL` 填的是正式域名
 - [ ] 后台默认密码 `admin123456` 已修改
+- [ ] 服务器时区已设置（见 `docs/NOTES.md` 第 2 节，否则文章时间会差 8 小时）
 - [ ] `npm run build` 成功，`pm2 status` 显示 online
+- [ ] `pm2 startup` + `pm2 save` 已执行，重启服务器后站点能自动恢复
 - [ ] `nginx -t` 通过，域名能正常访问
 - [ ] HTTPS 证书已签发，HTTP 自动跳转 HTTPS
-- [ ] 数据库备份 cron 已配置
+- [ ] 数据库 + `data/uploads/` 备份 cron 已配置
 - [ ] 发一条测试留言，确认后台「留言」能看到
+- [ ] 在后台「站点设置」上传一张头像，确认前台能正常显示（验证上传链路）
