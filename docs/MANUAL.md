@@ -212,6 +212,18 @@ SEED_DEMO=false npm run db:seed   # 把密码写入数据库
 
 `SEED_DEMO=false` 是必须的 —— 不加的话，如果数据库里没有示例内容，它会**补写** 3 篇示例文章和 4 个示例项目。
 
+反过来也要注意：`SEED_DEMO=false` **只跳过插入，不会删除已经存在的示例内容**。如果之前跑过一次不带参数的 seed，示例内容会一直留在库里，需要手动清理：
+
+```bash
+# 只删这 7 个已知的示例 slug，不会误删你自己写的内容
+sqlite3 prisma/prod.db "DELETE FROM Post WHERE slug IN ('building-a-personal-site-with-nextjs','how-i-organize-my-dev-workflow','notes-on-writing-sql-by-hand');"
+sqlite3 prisma/prod.db "DELETE FROM Project WHERE slug IN ('personal-site','dev-toolkit-cli','data-dashboard','markdown-notes-app');"
+```
+
+也可以在后台「文章」「项目」里逐个删除。另外，**站点设置（22 项）无论有没有这个参数都会被写入**，站名「我的个人空间」、作者「你的名字」这类默认值请去后台改成自己的。
+
+> Windows PowerShell 不支持 `SEED_DEMO=false npm run db:seed` 这种 bash 写法（会直接报错、命令没执行），要写成 `$env:SEED_DEMO="false"; npm run db:seed`。
+
 seed 是幂等的（内部用 `upsert`），重复执行不会产生重复数据，也不会覆盖你已有的文章和设置。
 
 如果重跑后还是登录不上，按顺序排查：

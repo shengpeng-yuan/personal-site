@@ -151,6 +151,23 @@ npm run db:seed
 npm run build
 ```
 
+> ### ℹ️ `SEED_DEMO=false` 到底做了什么
+>
+> 它只控制「**要不要插入**示例内容」，**不会删除已经存在的示例内容**。如果之前已经不加参数跑过一次 `db:seed`，那 3 篇示例文章和 4 个示例项目就已经落库了，之后再怎么加 `SEED_DEMO=false` 也不会消失。
+>
+> 清理办法（只删这 7 个已知 slug，不会误删你自己写的内容）：
+>
+> ```bash
+> sqlite3 prisma/prod.db "DELETE FROM Post WHERE slug IN ('building-a-personal-site-with-nextjs','how-i-organize-my-dev-workflow','notes-on-writing-sql-by-hand');"
+> sqlite3 prisma/prod.db "DELETE FROM Project WHERE slug IN ('personal-site','dev-toolkit-cli','data-dashboard','markdown-notes-app');"
+> ```
+>
+> 或者直接在后台「文章」「项目」里逐个删除。
+>
+> 另外注意：**站点设置（22 项）无论有没有这个参数都会被写入**，因为站点缺了它们无法渲染。站名「我的个人空间」、作者「你的名字」这类默认值请去后台「站点设置」里改成自己的，那不属于示例内容。
+>
+> 最后：`db:seed` 跑过一次就够了。之后改密码走后台「站点设置 → 修改登录密码」，改站名走后台「站点设置」，都不需要再跑它。
+
 > ### ⚠️ 关于管理员密码（这里最容易困惑，务必看完）
 >
 > `.env` 里的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` **不是登录凭据**。它们只在 `db:seed` 执行的那一刻被读取一次，被 bcrypt 哈希后写进数据库的 `User` 表；登录时只比对数据库里的哈希值。
