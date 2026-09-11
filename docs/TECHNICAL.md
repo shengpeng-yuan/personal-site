@@ -114,14 +114,17 @@ ai-project/
 │   ├── Pagination.tsx            # 分页
 │   ├── SearchBar.tsx             # 搜索框
 │   ├── ContactForm.tsx           # 留言表单
-│   ├── ThemeToggle.tsx           # 深色模式切换
+│   ├── ThemeToggle.tsx           # 主题切换（跟随时间 / 亮色 / 暗色 三态）
 │   ├── LangSwitcher.tsx          # 中英切换
 │   ├── SetHtmlLang.tsx           # 同步 <html lang>
+│   ├── SecretAdminEntry.tsx      # 前台的隐藏后台入口（键盘密语 + 连点）
 │   └── ViewTracker.tsx           # 阅读量上报
 ├── lib/
 │   ├── prisma.ts                 # PrismaClient 单例
 │   ├── content.ts                # 内容查询（文章/项目/标签/统计）
 │   ├── settings.ts               # 站点设置的读写与本地化
+│   ├── theme.ts                  # 主题模式、时段判断、防闪烁脚本生成
+│   ├── uploads.ts                # 上传目录、允许的扩展名、文件名安全校验
 │   ├── validators.ts             # 请求体 → 数据库字段的转换与校验
 │   ├── session.ts                # JWT 签发/校验（Edge 兼容，无 next 依赖）
 │   ├── auth.ts                   # 基于 Cookie 的登录态读取
@@ -201,7 +204,7 @@ ai-project/
 | value | String | 值；数组存 JSON，布尔存 `"true"`/`"false"` |
 | updatedAt | DateTime | 最后修改时间 |
 
-字段清单与默认值定义在 [lib/settings.ts](../lib/settings.ts)：站名、简介、作者、个人介绍、头像、所在地、邮箱、GitHub/X/LinkedIn/微信、简历链接、页脚文案、备案号、技能数组、是否可接洽。
+字段清单与默认值定义在 [lib/settings.ts](../lib/settings.ts)：站名、简介、作者、个人介绍、头像、所在地、邮箱、GitHub/X/LinkedIn/微信、简历链接、页脚文案、ICP 备案号与链接、公安备案号与链接、技能数组、是否可接洽、主题时段（是否启用 + 亮色起止时间）。
 
 > 用键值对而不是固定列，是为了以后加设置项时**不需要改数据库结构**：只要在 `defaultSettings` 里加一个默认值，前后端就自动支持（后台表单会按分组渲染）。
 
@@ -366,11 +369,44 @@ SQLite 没有原生数组类型。这些数组只用于「展示 + 简单筛选�
 
 `.card` `.card-hover` `.btn` `.btn-primary` `.btn-ghost` `.input` `.badge` `.glass` `.gradient-text` `.markdown` …
 
-### 8.2 深色模式不闪烁
+### 8.2 主题：按访客时间自动切换
 
-[app/layout.tsx](../app/layout.tsx) 在 `<head>` 里内联了一段同步脚本，**在首次绘制之前**读取 `localStorage.theme` 或系统偏好并给 `<html>` 加 `dark` 类。若放到 React 里做，会出现白屏闪一下再变黑的抖动。
+主题有三种状态，逻辑集中在 [lib/theme.ts](../lib/theme.ts)：
 
-### 8.3 Markdown 渲染管线
+| 状态 | 含义 |
+| --- | --- |
+| `auto`（跟随时间） | 默认。按**访客本地时间**与后台设置的「亮色时段」推算；未启用时段规则时跟随系统深色偏好 |
+| `light` / `dark` | 访客手动选择，持久化在 `localStorage.theme`，**优先于时段规则** |
+
+解析优先级：`localStorage 手动选择` → `时段规则（或系统偏好）`。
+
+两个实现要点：
+
+1. **防闪烁**：`buildThemeScript()` 把时段配置序列化后，由 [app/layout.tsx](../app/layout.tsx) 内联到 `<head>` 同步执行，
+   **在首次绘制之前**给 `<html>` 加上 `dark` 类。放到 React 里做会出现「先白后黑」的抖动。
+   代价是根布局需要读取站点设置，因此根布局声明了 `dynamic = 'force-dynamic'`（所有路由实时渲染，不在构建期访问数据库）。
+2. **循环顺序不能只靠「当前模式」推断**：因为「自动」显示出来的效果可能和某个显式选项完全相同
+   （例如白天自动＝亮色），一旦脱离自动态就无法判断下一步该去哪。所以 `themeCycle(autoResolved)`
+   返回的是**完整顺序**，在离开自动态的那一刻确定下来，保证每次点击都有可见变化、且三态都可达：
+   - 白天：跟随时间 → 暗色 → 亮色 → 跟随时间
+   - 夜间：跟随时间 → 亮色 → 暗色 → 跟随时间
+
+> 时间用的是 `new Date()`，即**访客浏览器的时区**，所以不同时区的访客各按自己的作息看到对应主题，
+> 与服务器时区无关（服务器时区只影响文章日期的显示，见 NOTES.md）。
+
+### 8.3 前台的隐藏后台入口
+
+[components/SecretAdminEntry.tsx](../components/SecretAdminEntry.tsx) 提供两个不可见的触发方式：
+
+- `SecretAdminKeyboard`：监听 `keydown`，滚动比对密语（默认 `admin`），挂在 `[locale]/layout.tsx`，所有前台页面可用；
+- `SecretAdminClick`：包裹元素（首页头像名片），统计点击次数与时间窗口，用 `display: contents` 包裹所以不产生额外盒子、不影响布局。
+
+两处关键防护：**忽略输入框内的按键**（否则在搜索框里打 "admin" 会被误触发）、**忽略带修饰键的按键**（Ctrl+C 等）。
+
+> ⚠️ 这是**便利入口，不是安全机制**。前端隐藏手段必然可被发现，真正的防护是登录密码与会话校验。
+> 密语与连点次数是文件顶部的常量，改完需要重新构建。
+
+### 8.4 Markdown 渲染管线
 
 ```
 Markdown 字符串
