@@ -202,9 +202,87 @@ npm run build
 >    ```
 >    查不到任何行 → 说明 seed 没跑成功，回到 4.3 重跑并观察报错。
 
-构建成功的标志是最后输出一张路由表，并包含 `✓ Generating static pages (20/20)`。
+构建成功的标志是最后输出一张路由表，并包含 `✓ Generating static pages (18/18)`。
 
 > ⚠️ 每一步都要确认没有报错再继续。`npm run build` 会做完整的 TypeScript 类型检查。
+
+### 4.5 服务器配置较低时（内存不足 / 下载很慢）
+
+`npm ci` 在低配服务器上「卡死」，通常是下面两个原因之一，先分清是哪个：
+
+| 现象 | 原因 | 对应处理 |
+| --- | --- | --- |
+| 进度条长时间不动、`npm` 进程 CPU 很低 | **网络慢**（默认源在海外） | 见下面的「① 换国内镜像」 |
+| 进程突然消失、`Killed`、SSH 卡住 | **内存不足**，被 OOM Killer 杀掉 | 见下面的「② 加 swap」 |
+
+> 实测本项目的依赖规模：**727 MB / 27,412 个文件**（完整 `node_modules`），
+> 而 standalone 产物只有 **79.5 MB / 2,054 个文件** —— 这也是下面「③ 不在服务器上构建」的依据。
+
+#### ① 换国内镜像（最可能的原因）
+
+项目根目录已经带了 `.npmrc`，会自动使用 `registry.npmmirror.com`。如果你在服务器上没生效，手动确认：
+
+```bash
+npm config get registry          # 期望输出 https://registry.npmmirror.com
+```
+
+另外 **Prisma 的引擎二进制不走 npm 源**，它从 `binaries.prisma.sh` 下载，国内经常极慢或超时，需要单独指定镜像：
+
+```bash
+export PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma
+npm ci --no-audit --no-fund
+```
+
+> 这个环境变量只在当前终端会话有效。写进 `~/.bashrc` 可以长期生效。
+> 如果你换了其他版本的 Prisma，镜像里没有对应文件时会报 404，此时去掉这个变量即可。
+
+#### ② 加 swap（内存不足的根本解法）
+
+```bash
+free -h                                   # 先看当前内存和 swap
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h                                   # 确认 Swap 变成 2.0Gi
+```
+
+有了 swap 之后，再配合省资源的安装方式：
+
+```bash
+# --ignore-scripts 跳过所有 postinstall（避免与 npm 主进程争内存），之后单独跑 prisma generate
+npm ci --no-audit --no-fund --ignore-scripts
+npx prisma generate
+npm run build
+```
+
+> ⚠️ `next build` 比 `npm ci` **更吃内存**（普遍需要 1~2GB）。1GB 内存的机器没有 swap 基本必然失败，
+> 所以如果你跳过了 swap，很可能「npm ci 过了、build 挂了」。
+
+#### ③ 干脆不在服务器上构建（推荐，最彻底）
+
+如果上面两条都试过还是很慢，就改用 **standalone 产物**：在别的机器/CI 上构建好，服务器只负责运行 ——
+`npm ci` 和 `next build` 一次都不用跑。详见 [11.1](#111-用-standalone-产物在低配服务器上部署推荐)。
+
+### 4.6 完全离线安装（可选）
+
+如果服务器连镜像也很慢，可以在本地把包缓存好一起传上去：
+
+```bash
+# 本地：把下载缓存放到项目内的目录
+npm ci --cache ./.npm-cache
+
+# 上传时带上缓存目录
+rsync -av --exclude node_modules --exclude .next ./ user@你的服务器IP:/var/www/personal-site/
+
+# 服务器：离线安装，只走本地缓存，不再联网
+cd /var/www/personal-site
+npm ci --offline --cache ./.npm-cache
+```
+
+这只省掉「下载」这一段，解压 27,412 个文件的开销以及 Prisma 引擎的下载依然存在，
+所以**它不如 4.5 的 ③ 彻底**，仅在网络确实不可用时使用。
 
 ---
 
@@ -417,7 +495,8 @@ pm2 reload personal-site     # 平滑重启，几乎无停机
 
 | 现象 | 原因与解决 |
 | --- | --- |
-| 访问域名返回 **502 Bad Gateway** | Node 进程没起来。执行 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。 |
+| 访问域名返回 **502 Bad Gateway** | 先看进程是否真的活着：`pm2 status` 关注 **uptime** 和 **↺** 两列 | 没起来就 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。修好后 `pm2 start personal-site` |
+| `pm2 status` 显示 online，但 **uptime 一直是 0s、↺ 数字飞快增长** | **崩溃重启循环**。PM2 的 `online` 只表示「正在尝试拉起进程」，崩溃循环里也显示 online，具有误导性 | 先 `pm2 stop personal-site` 止血（否则持续占满 CPU，连 `npm ci` 都跑不动），再 `tail -n 40 /root/.pm2/logs/personal-site-error.log` 看真实报错。最常见原因是 `.next/BUILD_ID` 不存在（没构建成功），报错 `Could not find a production build in the '.next' directory` |
 | 后台登录提示「用户名或密码错误」 | **最常见的原因不是密码错了，而是 `.env` 改了但数据库没同步。** `.env` 里的 `ADMIN_PASSWORD` 只在 `db:seed` 时写入数据库一次；先 seed 后改 `.env` 的话，登录用的还是旧密码。解法：`SEED_DEMO=false npm run db:seed` 重跑一次，然后用 `.env` 里的原文登录（详见第 4 节说明）。若重跑后仍失败，用 `sqlite3 prisma/prod.db "SELECT id, username FROM User;"` 确认账号是否真的存在。 |
 | 登录后立刻又回到登录页 | Cookie 的 `Secure` 标记与访问协议不匹配。你已经用 HTTPS，正常情况下不会出现；若临时用 http 访问，需在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`，排查完记得删掉。 |
 | 上传图片后访问 404 | 确认进程有写权限：`ls -ld /var/www/personal-site/data`；再确认 `UPLOAD_DIR`（若配置了）指向的目录存在且可写。图片是应用运行时读取的，**不要**给 nginx 配 `/uploads/` 的 alias。 |

@@ -553,7 +553,8 @@ pm2 save && pm2 startup           # 配置开机自启
 
 | 现象 | 怎么定位 | 怎么解决 |
 | --- | --- | --- |
-| **502 Bad Gateway** | `pm2 status` 看进程是否 online | 没起来就 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失、`npm run build` 没执行。修好后 `pm2 start personal-site` |
+| **502 Bad Gateway** | `pm2 status` 看 **uptime** 和 **↺** 两列（不要只看 status） | 没起来就 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失、`npm run build` 没执行。修好后 `pm2 start personal-site` |
+| **`pm2 status` 显示 online，但 uptime 一直是 0s、↺ 飞快增长** | **崩溃重启循环**：进程启动后立刻退出。PM2 的 `online` 在崩溃循环里也会显示，容易误判 | ① 先 `pm2 stop personal-site` 止血（否则一直占满 CPU，连装依赖都跑不动）；② `tail -n 40 /root/.pm2/logs/personal-site-error.log` 看真实报错；③ 最常见是没构建成功：`ls -l .next/BUILD_ID` 不存在就重新 `npm run build` |
 | **域名打不开、连不上** | `curl -I http://127.0.0.1:3000` | 本机通但域名不通 → nginx 问题：`sudo nginx -t`、`sudo tail -n 50 /var/log/nginx/error.log`、确认安全组放行 443 |
 | **后台登录提示「用户名或密码错误」** | `sqlite3 prisma/prod.db "SELECT id, username FROM User;"` | 数据库里的密码才是真的。`.env` 改了要重跑 seed（见 [4.2](#42-场景二忘记密码了)） |
 | **后台登录提示「尝试次数过多」** | 连续输错 10 次触发限流 | 等 10 分钟，或 `pm2 restart personal-site` 立刻解锁。**先确认密码再试** |
