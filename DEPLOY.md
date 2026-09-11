@@ -497,6 +497,8 @@ pm2 reload personal-site     # 平滑重启，几乎无停机
 | --- | --- |
 | 访问域名返回 **502 Bad Gateway** | 先看进程是否真的活着：`pm2 status` 关注 **uptime** 和 **↺** 两列 | 没起来就 `pm2 logs personal-site` 看报错；常见是 `.env` 缺失或 `npm run build` 没执行。修好后 `pm2 start personal-site` |
 | `pm2 status` 显示 online，但 **uptime 一直是 0s、↺ 数字飞快增长** | **崩溃重启循环**。PM2 的 `online` 只表示「正在尝试拉起进程」，崩溃循环里也显示 online，具有误导性 | 先 `pm2 stop personal-site` 止血（否则持续占满 CPU，连 `npm ci` 都跑不动），再 `tail -n 40 /root/.pm2/logs/personal-site-error.log` 看真实报错。最常见原因是 `.next/BUILD_ID` 不存在（没构建成功），报错 `Could not find a production build in the '.next' directory` |
+| 错误日志里反复出现 **`sh: 1: next: not found`** | `node_modules` 里没有 `next`，也就是 **`npm ci` 从没成功跑完过**（依赖没装上或装了一半被中断） | 见 [4.5](#45-服务器配置较低时内存不足--下载很慢)：先 `pm2 stop personal-site` 止血 → `rm -rf node_modules .next` → 换国内镜像 → 加 swap → 重装。装完务必 `ls -l node_modules/.bin/next` 确认存在，再 `npm run build`，**最后 `ls -l .next/BUILD_ID` 确认产物存在再启动** |
+| `npm ci` 看起来卡住不动 | 先区分「真卡死」和「就是慢」 | 另开终端跑 `du -sh node_modules`（数字持续变大 = 正在解压，正常）和 `top -b -n1 \| head -12`（npm 进程 CPU 有波动 = 在干活）。1 核机器 5~15 分钟属正常。若日志出现 `Killed` 才是内存不足，见 [4.5](#45-服务器配置较低时内存不足--下载很慢) |
 | 后台登录提示「用户名或密码错误」 | **最常见的原因不是密码错了，而是 `.env` 改了但数据库没同步。** `.env` 里的 `ADMIN_PASSWORD` 只在 `db:seed` 时写入数据库一次；先 seed 后改 `.env` 的话，登录用的还是旧密码。解法：`SEED_DEMO=false npm run db:seed` 重跑一次，然后用 `.env` 里的原文登录（详见第 4 节说明）。若重跑后仍失败，用 `sqlite3 prisma/prod.db "SELECT id, username FROM User;"` 确认账号是否真的存在。 |
 | 登录后立刻又回到登录页 | Cookie 的 `Secure` 标记与访问协议不匹配。你已经用 HTTPS，正常情况下不会出现；若临时用 http 访问，需在 `.env` 加 `COOKIE_SECURE=false` 后 `pm2 reload personal-site`，排查完记得删掉。 |
 | 上传图片后访问 404 | 确认进程有写权限：`ls -ld /var/www/personal-site/data`；再确认 `UPLOAD_DIR`（若配置了）指向的目录存在且可写。图片是应用运行时读取的，**不要**给 nginx 配 `/uploads/` 的 alias。 |
