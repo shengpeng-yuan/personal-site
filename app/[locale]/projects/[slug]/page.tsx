@@ -6,6 +6,7 @@ import { Markdown } from '@/components/Markdown';
 import { ProjectCard } from '@/components/ProjectCard';
 import { getProjectBySlug, getProjects } from '@/lib/content';
 import { getDictionary, isLocale } from '@/lib/i18n';
+import { decodeRouteParam } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,8 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const project = await getProjectBySlug(slug);
+  // 动态路由参数是百分号编码的（中文 slug 尤其明显），必须先解码再查库
+  const project = await getProjectBySlug(decodeRouteParam(slug));
   if (!project) return { title: 'Not found' };
 
   return {
@@ -36,7 +38,8 @@ export default async function ProjectDetailPage({
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
 
-  const project = await getProjectBySlug(slug);
+  // 动态路由参数是百分号编码的（中文 slug 尤其明显），必须先解码再查库
+  const project = await getProjectBySlug(decodeRouteParam(slug));
   if (!project) notFound();
 
   const dict = getDictionary(locale);

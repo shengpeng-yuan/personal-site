@@ -59,6 +59,24 @@ export function truncate(text: string, length = 120): string {
   return plain.length > length ? `${plain.slice(0, length)}…` : plain;
 }
 
+/**
+ * 安全地解码 URL 中的动态路由参数。
+ *
+ * Next.js 会把 [slug] 这类动态段**原样**传入（保留百分号编码），
+ * 所以中文 slug 在页面里拿到的是 `guacamole%E8%BF%9C...` 而不是 `guacamole远程...`，
+ * 直接拿去查数据库会查不到、返回 404。
+ *
+ * 对已经是明文的字符串调用它是安全的（没有 % 序列时原样返回）；
+ * 对格式非法的输入（例如 slug 里真的含有一个 %）也不会抛错。
+ */
+export function decodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 /** 在前台页面之间跳转时保留当前语言前缀 */
 export function localePath(locale: Locale, path = ''): string {
   const clean = path.startsWith('/') ? path : path ? `/${path}` : '';

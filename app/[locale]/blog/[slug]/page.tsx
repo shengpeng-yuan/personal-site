@@ -7,7 +7,7 @@ import { PostCard } from '@/components/PostCard';
 import { ViewTracker } from '@/components/ViewTracker';
 import { getAdjacentPosts, getPostBySlug, getRelatedPosts } from '@/lib/content';
 import { getDictionary, isLocale } from '@/lib/i18n';
-import { formatDate, parseList, readingTime } from '@/lib/utils';
+import { decodeRouteParam, formatDate, parseList, readingTime } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,8 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }): Promise<Metadata> {
   const { locale, slug } = await params;
-  const post = await getPostBySlug(slug);
+  // 动态路由参数是百分号编码的（中文 slug 尤其明显），必须先解码再查库
+  const post = await getPostBySlug(decodeRouteParam(slug));
   if (!post) return { title: 'Not found' };
 
   const title = pick(locale, post.titleZh, post.titleEn);
@@ -42,7 +43,8 @@ export default async function PostDetailPage({
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
 
-  const post = await getPostBySlug(slug);
+  // 动态路由参数是百分号编码的（中文 slug 尤其明显），必须先解码再查库
+  const post = await getPostBySlug(decodeRouteParam(slug));
   if (!post) notFound();
 
   const dict = getDictionary(locale);

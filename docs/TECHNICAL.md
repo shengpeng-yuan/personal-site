@@ -278,6 +278,30 @@ SQLite 没有原生数组类型。这些数组只用于「展示 + 简单筛选�
 
 > ⚠️ 注意：Route Handler 文件**只能导出 HTTP 方法**（以及 `runtime`、`dynamic` 等配置）。把辅助函数写在 `route.ts` 里会导致 `next build` 报「does not match the required types of a Next.js Route」。这就是 `buildPostData` 放在 `lib/` 而不是 `route.ts` 里的原因。
 
+### 5.4 动态路由参数必须手动解码（中文 slug 的坑）
+
+Next.js 会把 `[slug]` 这类动态段**原样**传入，**保留百分号编码**。也就是说，访问
+`/zh/blog/guacamole%E8%BF%9C%E7%A8%8B…` 时，页面里的 `params.slug` 是
+`guacamole%E8%BF%9C%E7%A8%8B…`，而不是 `guacamole远程…`。
+
+直接拿它去查数据库，中文 slug 永远匹配不上，页面返回 **404**。纯英文 slug 因为不含
+需要编码的字符，所以不会暴露这个问题 —— 这也是为什么它很容易被忽略。
+
+因此所有详情页在查询前统一调用 `decodeRouteParam()`（见 [lib/utils.ts](../lib/utils.ts)）：
+
+```tsx
+const { slug } = await params;
+const post = await getPostBySlug(decodeRouteParam(slug));
+```
+
+已处理的位置：
+
+- [app/[locale]/blog/[slug]/page.tsx](../app/[locale]/blog/[slug]/page.tsx)（页面 + `generateMetadata`）
+- [app/[locale]/projects/[slug]/page.tsx](../app/[locale]/projects/[slug]/page.tsx)（页面 + `generateMetadata`）
+
+> ⚠️ **以后新增任何「值可能包含中文」的动态路由，都必须记得解码这一层。**
+> 另外建议新建文章/项目时手填英文 slug：既避开这类编码问题，分享出去的链接也更友好。
+
 ---
 
 ## 6. 鉴权与会话
